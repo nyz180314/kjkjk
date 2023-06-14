@@ -5,6 +5,7 @@ import random
 import re
 import string
 from typing import Union, Optional
+from typing import Optional, Tuple
 
 import unicodedata
 from importlib.resources import read_text
@@ -106,8 +107,9 @@ class CheggScraper:
             value = unicodedata.normalize('NFKC', value)
         else:
             value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore').decode('ascii')
-        value = re.sub(r'[^\w\s-]', '', value.lower())
-        return re.sub(r'[-\s]+', '-', value).strip('-_')
+        value = re.sub(r'[^\w\s-]', '',git init
+ value.lower())
+        return re.sub(r'[-\s]+', '-',  value).strip('-_')
 
     @staticmethod
     def render_chapter_type_html(data: dict) -> str:
@@ -119,16 +121,20 @@ class CheggScraper:
         :return: rendered html code
         :rtype: str
         """
-        chapter_d = data['data']['textbook_solution']['chapter'][0]
-        problem_d = chapter_d['problems'][0]
-        solutionV2 = problem_d['solutionV2'][0]
+        json_obj = json.dumps(data.json())
+        data = json.loads(json_obj)
+        #print(data)
+        #for key, value in data.items():
+        #    print(f"{key}: {value}")
 
+        totalSteps = data['data']['tbsSolutionContent'][0]['totalSteps']
+        steps = data["data"]["tbsSolutionContent"][0]["stepsLink"]
         _data = {
-            'chapterName': chapter_d['chapterName'],
-            'problemName': problem_d['problemName'],
-            'problemHtml': problem_d['problemHtml'],
-            'totalSteps': solutionV2['totalSteps'],
-            'steps': solutionV2['steps'],
+            'chapterName': None,
+            'problemName': None,
+            'problemHtml': None,
+            'totalSteps': totalSteps,
+            'steps': steps,
         }
 
         return chapter_type_template.render(**_data)
@@ -229,7 +235,7 @@ class CheggScraper:
         raise CookieFileDoesNotExist(cookie_path)
 
     @staticmethod
-    def clean_url(url: str) -> (bool, Optional[int], str):
+    def clean_url(url: str) -> Tuple[bool, Optional[int], str]:
         """
         Cleans the url, So no track id goes to url
         """
@@ -253,7 +259,8 @@ class CheggScraper:
         """
         Final changes to final html code, like changing class of some divs
         """
-        soup = BeautifulSoup(html_text, 'lxml')
+        soup = BeautifulSoup(html_text, 'html.parser')
+        #print(soup)
         if soup.find('div', {'id': 'show-more'}):
             soup.find('div', {'id': 'show-more'}).decompose()
         if soup.find('section', {'id': 'general-guidance'}):
@@ -342,7 +349,12 @@ class CheggScraper:
         heading_data = soup.find('script', id='__NEXT_DATA__')
         if heading_data:
             heading_data = heading_data.text
-            heading = json.loads(heading_data)['query']['qnaSlug']
+            #print(f"\n\nheading_data: {heading_data}\n\n")
+            try:
+                heading = json.loads(heading_data)['query']['qnaSlug']
+            except:
+                heading = json.loads(heading_data)['query']['hwhSlug']
+                pass
         if not heading:
             title = soup.find('title')
             if title:
@@ -392,27 +404,107 @@ class CheggScraper:
         except KeyError:
             # No errors found
             pass
-
+        
+        #print(f"DATA: {data}")
         return data
 
     def _get_chapter_type_data(self, token: str, html_text: str) -> dict:
-        chapter_id = str(re.search(r'\?id=(\d+).*?isbn', html_text).group(1))
         isbn13 = str(re.search(r'"isbn13":"(\d+)"', html_text).group(1))
         problemId = str(re.search(r'"problemId":"(\d+)"', html_text).group(1))
 
-        query = {
-            "query": {
-                "operationName": "getSolutionDetails",
-                "variables": {
-                    "isbn13": isbn13,
-                    "chapterId": chapter_id,
-                    "problemId": problemId
-                }
+        json_data = {
+            'operationName': 'SolutionContent',
+            'variables': {
+                'ean': isbn13,
+                'problemId': problemId,
             },
-            "token": token
+            'extensions': {
+                'persistedQuery': {
+                    'version': 1,
+                    'sha256Hash': '0322a443504ba5d0db5e19b8d61c620d5cab59c99f91368c74dcffdbea3e502f',
+                },
+            },
         }
-        graphql_url = 'https://www.chegg.com/study/_ajax/persistquerygraphql'
-        res_data = self._get_response_dict(url=graphql_url, post=True, _json=query)
+        graphql_url = 'https://gateway.chegg.com/one-graph/graphql'
+        cookies = {
+    '_pxvid': 'bd2b85fe-a593-11ed-8f96-556b51777a46',
+    '_cs_c': '0',
+    '_ga': 'GA1.2.1776477376.1675646965',
+    '_fbp': 'fb.1.1675646972280.820576136',
+    '_tt_enable_cookie': '1',
+    '_ttp': 'DN5xpqMFKJkOJLPXI8OOnbLsXxa',
+    'optimizelyEndUserId': 'oeu1675823620851r0.8304850818441125',
+    'C': '0',
+    'O': '0',
+    'exp': 'C026A',
+    'expkey': '13417965AB0A666C8ED576A64210E72D',
+    'forterToken': 'b23f4d54cf084d1fb9719f6a8a8b1791_1675823626666__UDF43_13ck',
+    '__gads': 'ID=616e99e4b51fa258:T=1675823632:S=ALNI_MYowAAbsTlnNEyfsF2Jpnc3AXgjmA',
+    '_gcl_au': '1.1.389950071.1675646966.2138176320.1675823637.1675823746',
+    'refresh_token': 'ext.a0.t00.v1.MSjgXTecsWC71-aj7IEDMwFjtgg1a9YNHqU33f-ym7xOk0D4_UduY0Dm2uWq8I_BGwruibHrN1q5KQxeMc5IAIw',
+    'id_token': 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6IkNoZWdnYWxsZmFjQGdtYWlsLmNvbSIsImlzcyI6Imh1Yi5jaGVnZy5jb20iLCJzdWIiOiJhY2UyYzEyZi0zMmEyLTQxN2MtODgzOC0xNzY1YmUyOThiZjYiLCJhdWQiOiJDSEdHIiwiaWF0IjoxNjc1ODIzNzUwLCJleHAiOjE2OTEzNzU3NTAsInJlcGFja2VyX2lkIjoiYXB3In0.wa7XttAEfwBaXuGyf5p6qbcxX98VXsc-ZdRbvIi_5vTGowFyGXOUDGw995e7rafCzTaHBIw6hIRWOnMn7wV6j_hadtKwCXNH0YpdhtuBgGNeOEcYUBzlrYBFwpbbgxEUOLgQ0kcAaV6MSAmJ6oW2wnVrT6VrKDrfr22kQUnU4bqyzeRMU2uPlWCroB_5vVbVR0CIeIogQOAuZZ4PCEUZua3PjxfeB_L-1jnFNRSNQjOLjvYliP7WGtArMOjDtwRP2gWNA0OYlq4WYvTzCtw6zTdD9xQcRcJGOsguViw4532A0XPw9cd1V0TMNwLnuTU3FxcWZU8EPdq_N0ObLHHM1w',
+    'U': '342267c90c025ff81dc25847dd832d46',
+    '_pubcid': 'fbcd7572-8990-4725-85f2-286a5a6a9122',
+    '_iidt': 'n/5Kzfn0rvXdJqze/vpeQHlacV6VCmetWKdrBxfcpKdWUTHWVJyGIWdxz/bkqEZxgXUwksGjLtv4pq2DmdtPquv9jw==',
+    '_vid_t': '72wwiePvtbpIjIdF43M54//CEsDsYrKD5OSbURLHARa5gMu3burxzTpiZR4SbNwC2i9HWWZsNP86S1I8eIobw1N/3w==',
+    'DFID': 'web|0n66QXMTVw6MKJyZh5SC',
+    '_scid': 'f5ae9712-c5f9-4172-b41b-a155cc381365',
+    '_sctr': '1|1675746000000',
+    'V': '9ae2236d1860842bdcaf3f070af444d063e5b59ba45a1c.32685354',
+    '_gid': 'GA1.2.1134296694.1675998624',
+    'opt-user-profile': 'ace2c12f-32a2-417c-8838-1765be298bf6%252C22383174742%253A22473560126%252C22027151712%253A22030841005%252C22676901331%253A22719991359%252C21582730015%253A21585790242%252C22578180392%253A22595130475%252C23015360008%253A23003820007%252C22806995500%253A22814540677%252C21745990891%253A21741661939',
+    'CVID': 'edb7f79f-707d-42c8-88ee-aaf560c5c628',
+    '_cs_id': '76f352e0-0f34-a08a-9648-7bc3e43423cc.1675646981.11.1676044337.1676044337.1.1709810981919',
+    '_awl': '2.1676044375.5-87aa1b3c6a4d970df015798f55dee345-6763652d75732d6561737431-0',
+    'country_code': 'US',
+    'user_geo_location': '%7B%22country_iso_code%22%3A%22US%22%2C%22country_name%22%3A%22United+States%22%2C%22locale%22%3A%7B%22localeCode%22%3A%5B%22en-US%22%5D%7D%7D',
+    'PHPSESSID': '154iebcs7utpcioeritij1uvvk',
+    'CSessionID': '68778fa5-c86c-40e0-9fa7-6487dcfef254',
+    'SU': 'pkdIh1CwBRUQtYHmHWckO3-O7MEy0MwfW7f2yjCO-gnByEXU28D4vV2fgLTkOgNpTzX9pbzDlRNmQHPu0K7nIcdCKeR8Wnb7utxU4SFqDieVSRegfCbnHQT6RED-eBX4',
+    'pxcts': 'a089a22a-a966-11ed-9768-537367444b65',
+    'local_fallback_mcid': '84219933146126523994541375058474523054',
+    's_ecid': 'MCMID|84219933146126523994541375058474523054',
+    'IR_gbd': 'chegg.com',
+    '__gpi': 'UID=000009eb2f592123:T=1675823632:RT=1676060630:S=ALNI_MY1hFnJMaqaE4Mg3fjGh9YHYYtpXQ',
+    'CSID': '1676072970932',
+    'OptanonConsent': 'isGpcEnabled=0&datestamp=Fri+Feb+10+2023+20%3A51%3A21+GMT-0500+(hora+de+Ecuador)&version=6.39.0&isIABGlobal=false&hosts=&consentId=23fba12a-83bb-4e10-a396-5d4e863f5a8f&interactionCount=1&landingPath=NotLandingPage&groups=fnc%3A1%2Csnc%3A1%2Ctrg%3A1%2Cprf%3A1&AwaitingReconsent=false',
+    'IR_14422': '1676080299630%7C0%7C1676080299630%7C%7C',
+    'ab.storage.deviceId.b283d3f6-78a7-451c-8b93-d98cdb32f9f1': '%7B%22g%22%3A%22dd83a986-8912-8ba2-842c-93a1824269c8%22%2C%22c%22%3A1675823754068%2C%22l%22%3A1676080301923%7D',
+    'ab.storage.userId.b283d3f6-78a7-451c-8b93-d98cdb32f9f1': '%7B%22g%22%3A%22ace2c12f-32a2-417c-8838-1765be298bf6%22%2C%22c%22%3A1675823754056%2C%22l%22%3A1676080301925%7D',
+    'ab.storage.sessionId.b283d3f6-78a7-451c-8b93-d98cdb32f9f1': '%7B%22g%22%3A%222bf08ecf-38d7-72c4-c6c7-c7ab114a21de%22%2C%22e%22%3A1676082102003%2C%22c%22%3A1676080301920%2C%22l%22%3A1676080302003%7D',
+    '_uetsid': '75e57350a8f011ed8102f58dc14e1d4a',
+    '_uetvid': 'b21bc910a5bd11edac6b4decbe79578c',
+    '_px3': '326b14ac08d140bc9601a3157bd56bdddbec3d5be13caead50e7d81ff705eeb7:UZR+yp51lugc814u9A2PkpACIDb2veE+XfI6MyjVRApap1Cb5PXzfcqqQsLIppVBAMYQpgOjLeRAWxKvehzqug==:1000:NyKW9qSAFEbPhD/UDP6jGmu9ef6PcKGl2go9Zss/c8llQiwR4AbdcNe6BIYLVAPyYBP5k/YUTA9FVGuMjxqQhH3HoVngYtfP2spvi3Wx3o+7ZoSZGe5t25wfxB42BySLnT6H3/UG0TsS5EOpbi1Ok/LQxr6lAzphA+uSGxzSK0uP+cHUQHLpaOfrvJtRul/wSMHabOU0q400u0pfQNftHg==',
+    '_px': 'UZR+yp51lugc814u9A2PkpACIDb2veE+XfI6MyjVRApap1Cb5PXzfcqqQsLIppVBAMYQpgOjLeRAWxKvehzqug==:1000:5UHxMyXoEVkqKC3bITlqhQB0Dzc5Ti8o25J+9sC8OBTW0iiK27ihXkbw2uMU0GxxPHI7vTind7eOwchYbUkIidl0+CWJT23k22qzWK3HzIBEByyyZLB/UPl5R6q8pku7MAWOUvhSbEGBMEnW550X+07mfYJ8jVYL+SZ9ktB6qZrpwOdgyKmJxTrpta1IqCx2V19wDtVZ+Agt8Kw3XS5BfSty9E4zqiX46U6kPgmQ09aGJuQePYEarEAv7/aztRmSUUczH7dH5nlBRHNTnj3/Vw==',
+}
+
+        headers = {
+    'authority': 'gateway.chegg.com',
+    'accept': '*/*',
+    'accept-language': 'es-419,es;q=0.9,es-ES;q=0.8,en;q=0.7,en-GB;q=0.6,en-US;q=0.5',
+    'apollographql-client-name': 'chegg-web',
+    'apollographql-client-version': 'main-2e838a9f-3753980649',
+    'authorization': 'Basic TnNZS3dJMGxMdVhBQWQwenFTMHFlak5UVXAwb1l1WDY6R09JZVdFRnVvNndRRFZ4Ug==',
+    'content-type': 'application/json',
+    # 'cookie': '_pxvid=bd2b85fe-a593-11ed-8f96-556b51777a46; _cs_c=0; _ga=GA1.2.1776477376.1675646965; _fbp=fb.1.1675646972280.820576136; _tt_enable_cookie=1; _ttp=DN5xpqMFKJkOJLPXI8OOnbLsXxa; optimizelyEndUserId=oeu1675823620851r0.8304850818441125; C=0; O=0; exp=C026A; expkey=13417965AB0A666C8ED576A64210E72D; forterToken=b23f4d54cf084d1fb9719f6a8a8b1791_1675823626666__UDF43_13ck; __gads=ID=616e99e4b51fa258:T=1675823632:S=ALNI_MYowAAbsTlnNEyfsF2Jpnc3AXgjmA; _gcl_au=1.1.389950071.1675646966.2138176320.1675823637.1675823746; refresh_token=ext.a0.t00.v1.MSjgXTecsWC71-aj7IEDMwFjtgg1a9YNHqU33f-ym7xOk0D4_UduY0Dm2uWq8I_BGwruibHrN1q5KQxeMc5IAIw; id_token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6IkNoZWdnYWxsZmFjQGdtYWlsLmNvbSIsImlzcyI6Imh1Yi5jaGVnZy5jb20iLCJzdWIiOiJhY2UyYzEyZi0zMmEyLTQxN2MtODgzOC0xNzY1YmUyOThiZjYiLCJhdWQiOiJDSEdHIiwiaWF0IjoxNjc1ODIzNzUwLCJleHAiOjE2OTEzNzU3NTAsInJlcGFja2VyX2lkIjoiYXB3In0.wa7XttAEfwBaXuGyf5p6qbcxX98VXsc-ZdRbvIi_5vTGowFyGXOUDGw995e7rafCzTaHBIw6hIRWOnMn7wV6j_hadtKwCXNH0YpdhtuBgGNeOEcYUBzlrYBFwpbbgxEUOLgQ0kcAaV6MSAmJ6oW2wnVrT6VrKDrfr22kQUnU4bqyzeRMU2uPlWCroB_5vVbVR0CIeIogQOAuZZ4PCEUZua3PjxfeB_L-1jnFNRSNQjOLjvYliP7WGtArMOjDtwRP2gWNA0OYlq4WYvTzCtw6zTdD9xQcRcJGOsguViw4532A0XPw9cd1V0TMNwLnuTU3FxcWZU8EPdq_N0ObLHHM1w; U=342267c90c025ff81dc25847dd832d46; _pubcid=fbcd7572-8990-4725-85f2-286a5a6a9122; _iidt=n/5Kzfn0rvXdJqze/vpeQHlacV6VCmetWKdrBxfcpKdWUTHWVJyGIWdxz/bkqEZxgXUwksGjLtv4pq2DmdtPquv9jw==; _vid_t=72wwiePvtbpIjIdF43M54//CEsDsYrKD5OSbURLHARa5gMu3burxzTpiZR4SbNwC2i9HWWZsNP86S1I8eIobw1N/3w==; DFID=web|0n66QXMTVw6MKJyZh5SC; _scid=f5ae9712-c5f9-4172-b41b-a155cc381365; _sctr=1|1675746000000; V=9ae2236d1860842bdcaf3f070af444d063e5b59ba45a1c.32685354; _gid=GA1.2.1134296694.1675998624; opt-user-profile=ace2c12f-32a2-417c-8838-1765be298bf6%252C22383174742%253A22473560126%252C22027151712%253A22030841005%252C22676901331%253A22719991359%252C21582730015%253A21585790242%252C22578180392%253A22595130475%252C23015360008%253A23003820007%252C22806995500%253A22814540677%252C21745990891%253A21741661939; CVID=edb7f79f-707d-42c8-88ee-aaf560c5c628; _cs_id=76f352e0-0f34-a08a-9648-7bc3e43423cc.1675646981.11.1676044337.1676044337.1.1709810981919; _awl=2.1676044375.5-87aa1b3c6a4d970df015798f55dee345-6763652d75732d6561737431-0; country_code=US; user_geo_location=%7B%22country_iso_code%22%3A%22US%22%2C%22country_name%22%3A%22United+States%22%2C%22locale%22%3A%7B%22localeCode%22%3A%5B%22en-US%22%5D%7D%7D; PHPSESSID=154iebcs7utpcioeritij1uvvk; CSessionID=68778fa5-c86c-40e0-9fa7-6487dcfef254; SU=pkdIh1CwBRUQtYHmHWckO3-O7MEy0MwfW7f2yjCO-gnByEXU28D4vV2fgLTkOgNpTzX9pbzDlRNmQHPu0K7nIcdCKeR8Wnb7utxU4SFqDieVSRegfCbnHQT6RED-eBX4; pxcts=a089a22a-a966-11ed-9768-537367444b65; local_fallback_mcid=84219933146126523994541375058474523054; s_ecid=MCMID|84219933146126523994541375058474523054; IR_gbd=chegg.com; __gpi=UID=000009eb2f592123:T=1675823632:RT=1676060630:S=ALNI_MY1hFnJMaqaE4Mg3fjGh9YHYYtpXQ; CSID=1676072970932; OptanonConsent=isGpcEnabled=0&datestamp=Fri+Feb+10+2023+20%3A51%3A21+GMT-0500+(hora+de+Ecuador)&version=6.39.0&isIABGlobal=false&hosts=&consentId=23fba12a-83bb-4e10-a396-5d4e863f5a8f&interactionCount=1&landingPath=NotLandingPage&groups=fnc%3A1%2Csnc%3A1%2Ctrg%3A1%2Cprf%3A1&AwaitingReconsent=false; IR_14422=1676080299630%7C0%7C1676080299630%7C%7C; ab.storage.deviceId.b283d3f6-78a7-451c-8b93-d98cdb32f9f1=%7B%22g%22%3A%22dd83a986-8912-8ba2-842c-93a1824269c8%22%2C%22c%22%3A1675823754068%2C%22l%22%3A1676080301923%7D; ab.storage.userId.b283d3f6-78a7-451c-8b93-d98cdb32f9f1=%7B%22g%22%3A%22ace2c12f-32a2-417c-8838-1765be298bf6%22%2C%22c%22%3A1675823754056%2C%22l%22%3A1676080301925%7D; ab.storage.sessionId.b283d3f6-78a7-451c-8b93-d98cdb32f9f1=%7B%22g%22%3A%222bf08ecf-38d7-72c4-c6c7-c7ab114a21de%22%2C%22e%22%3A1676082102003%2C%22c%22%3A1676080301920%2C%22l%22%3A1676080302003%7D; _uetsid=75e57350a8f011ed8102f58dc14e1d4a; _uetvid=b21bc910a5bd11edac6b4decbe79578c; _px3=326b14ac08d140bc9601a3157bd56bdddbec3d5be13caead50e7d81ff705eeb7:UZR+yp51lugc814u9A2PkpACIDb2veE+XfI6MyjVRApap1Cb5PXzfcqqQsLIppVBAMYQpgOjLeRAWxKvehzqug==:1000:NyKW9qSAFEbPhD/UDP6jGmu9ef6PcKGl2go9Zss/c8llQiwR4AbdcNe6BIYLVAPyYBP5k/YUTA9FVGuMjxqQhH3HoVngYtfP2spvi3Wx3o+7ZoSZGe5t25wfxB42BySLnT6H3/UG0TsS5EOpbi1Ok/LQxr6lAzphA+uSGxzSK0uP+cHUQHLpaOfrvJtRul/wSMHabOU0q400u0pfQNftHg==; _px=UZR+yp51lugc814u9A2PkpACIDb2veE+XfI6MyjVRApap1Cb5PXzfcqqQsLIppVBAMYQpgOjLeRAWxKvehzqug==:1000:5UHxMyXoEVkqKC3bITlqhQB0Dzc5Ti8o25J+9sC8OBTW0iiK27ihXkbw2uMU0GxxPHI7vTind7eOwchYbUkIidl0+CWJT23k22qzWK3HzIBEByyyZLB/UPl5R6q8pku7MAWOUvhSbEGBMEnW550X+07mfYJ8jVYL+SZ9ktB6qZrpwOdgyKmJxTrpta1IqCx2V19wDtVZ+Agt8Kw3XS5BfSty9E4zqiX46U6kPgmQ09aGJuQePYEarEAv7/aztRmSUUczH7dH5nlBRHNTnj3/Vw==',
+    'origin': 'https://www.chegg.com',
+    'referer': 'https://www.chegg.com/',
+    'sec-ch-ua': '"Not_A Brand";v="99", "Microsoft Edge";v="109", "Chromium";v="109"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+    'sec-fetch-dest': 'empty',
+    'sec-fetch-mode': 'cors',
+    'sec-fetch-site': 'same-site',
+    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36 Edg/109.0.1518.78',
+    'x-chegg-page-type': 'tbs-page',
+    'x-chegg-referrer': 'homework-help/elementary-linear-algebra-11th-edition-chapter-5-problem-6se-solution-9781118473504?recommendationId=0b59b469-32e0-445c-9b54-8d50e75c8900&regionName=recent+activity&sectionId=c44dc0da-6a57-41d9-bdf6-3a3e8c25bbe7',
+}
+
+
+        #res_data = self._get_response_dict(url=graphql_url, post=True, _json=json_data)
+        res_data = requests.post(f'{graphql_url}', cookies=cookies, headers=headers, json=json_data)
+        #print(res_data)
+        #print(json.dumps(res_data.json(), indent=2))
         return res_data
 
     def _parse_question_answer(self, legacy_id: Optional[int], html_text: str, chapter_type: bool, token: Optional[str],
@@ -423,9 +515,21 @@ class CheggScraper:
         if not chapter_type:
             data = self._get_non_chapter_type_data(legacy_id=legacy_id, auth_token=auth_token)
             question_div = data['data']['questionByLegacyId']['content']['body']
+            #print(f"question_div: {question_div}")            
             answer_divs = [f"<div class=\"answer-given-body ugc-base\">{answers_['answerData']['html']}</div>" for
                            answers_ in
                            data['data']['questionByLegacyId']['htmlAnswers']]
+            if answer_divs == []:
+                print("Esta vacio")
+                matches = re.findall(r'<html>(.*?)</html>', str(data))
+                answer_divs = ''
+                for match in matches:
+                    answer_divs += f"<html>{match}</html>"
+                pass
+            else:
+                print("Tiene Datos")
+                pass
+            #print(f"answer_divs: {answer_divs}")
             return question_div, '<ul class="answers-list">' + "".join(answer_divs) + "</ul>"
         else:
             return '<div></div>', self.render_chapter_type_html(
@@ -433,9 +537,9 @@ class CheggScraper:
             )
 
     def _parse(self, html_text: str, token: Optional[str], q_id: Optional[int], auth_token: str,
-               chapter_type: bool = None) -> (str, str, str, str):
+               chapter_type: bool = None) -> Tuple[str, str, str, str]:
         html_text = self.replace_src_links(html_text)
-        soup = BeautifulSoup(html_text, 'lxml')
+        soup = BeautifulSoup(html_text, 'html.parser')
         logging.debug("HTML\n\n" + html_text + "HTML\n\n")
 
         if soup.find('div', id='px-captcha'):
@@ -523,9 +627,8 @@ class CheggScraper:
             token = re.search(r'"token":"(.+?)"', html_res_text).group(1)
         except AttributeError:
             token = None
-
-        if chapter_type and not token:
-            raise UnableToGetToken
+        #if chapter_type and not token:
+        #    raise UnableToGetToken
 
         # static
         auth_token = "TnNZS3dJMGxMdVhBQWQwenFTMHFlak5UVXAwb1l1WDY6R09JZVdFRnVvNndRRFZ4Ug=="
