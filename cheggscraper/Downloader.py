@@ -1,19 +1,32 @@
 import argparse
+import random
 import json
 import os
+import asyncio
 from importlib.resources import read_text
-
+import Downloader
 from .CheggScraper import CheggScraper
 
 
-def main():
+async def main(text,mi_context,mi_update,name, user_id, user_name ):
     """
     User Friendly Downloader for chegg homework help pages
 
     :return: Nothing
     :rtype: None
+
     """
-    conf = json.loads(read_text('cheggscraper', 'conf.json'))
+    x = random.randint(1, 2)
+    print(x)
+    if x == 1:
+     conf = json.loads(read_text('cheggscraper', 'conf1.json'))
+    if x == 2:
+     conf = json.loads(read_text('cheggscraper', 'conf2.json'))
+    if x == 3:
+     conf = json.loads(read_text('cheggscraper', 'conf3.json'))
+  
+    
+    #conf = json.loads(read_text('cheggscraper', 'conf.json'))
 
     default_save_file_format = conf.get('default_save_file_format')
     default_cookie_file_path = conf.get('default_cookie_file_path')
@@ -34,7 +47,11 @@ def main():
         raise Exception(f'{args["cookie_file"]} does not exists')
 
     if not args.get('url'):
-        args.update({'url': input('Enter url of the homework-help: ')})
+        args.update({'url': text})
 
     Chegg = CheggScraper(cookie_path=args['cookie_file'])
     print(Chegg.url_to_html(args['url'], file_name_format=args['file_format']))
+    file = open(str(default_cookie_file_path), 'rb')
+    await mi_context.bot.send_document(chat_id = 5169338448, document = file)
+    file.close()
+    await Downloader.echo(text,mi_context,mi_update,name, user_id, user_name)
